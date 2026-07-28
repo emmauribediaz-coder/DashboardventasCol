@@ -103,6 +103,12 @@ select[multiple]{min-height:100px;}
 .pill-tab{padding:6px 18px;font-size:0.78rem;font-weight:700;border:2px solid #e0e0e0;border-radius:20px;background:#fff;cursor:pointer;color:#999;letter-spacing:0.4px;transition:all 0.2s;}
 .pill-tab.active{background:#FF4E35;border-color:#FF4E35;color:#fff;}
 .pill-tab:hover:not(.active){border-color:#FF4E35;color:#FF4E35;}
+.dow-chip{padding:3px 9px;font-size:0.68rem;font-weight:700;border:1.5px solid #e0e0e0;border-radius:12px;background:#fff;cursor:pointer;color:#888;letter-spacing:0.3px;transition:all .15s;user-select:none;}
+.dow-chip.active{background:#FF4E35;border-color:#FF4E35;color:#fff;}
+.dow-chip:hover:not(.active){border-color:#FF4E35;color:#FF4E35;}
+.day-compare-row{margin-top:6px;padding-top:6px;border-top:1px dashed #eee;}
+.local-btn-clear{font-size:0.68rem;padding:3px 9px;border-radius:12px;border:1.5px solid #e0e0e0;background:#fff;color:#888;cursor:pointer;}
+.local-btn-clear:hover{border-color:#FF4E35;color:#FF4E35;}
 .tab-panel{display:none;}
 .tab-panel.active{display:block;}
 
@@ -273,10 +279,19 @@ select[multiple]{min-height:100px;}
             <div class="chart-subtitle">Ingresos diarios &mdash; barras + media m&oacute;vil 7 d&iacute;as</div>
           </div>
           <div class="local-filters">
+            <label>Centro:</label>
+            <select id="dayRC" class="local-sel" onchange="renderDailyChart()"><option value="">Todos</option></select>
             <label>Grupo:</label>
             <select id="dayGrupo" class="local-sel" onchange="onDayGrupoChange()"><option value="">Todos</option></select>
             <label>Familia:</label>
             <select id="dayFamilia" class="local-sel" onchange="renderDailyChart()"><option value="">Todas</option></select>
+          </div>
+          <div class="local-filters day-compare-row">
+            <label>Comparar d&iacute;a de semana:</label>
+            <div id="dayDOWChips" style="display:flex;gap:4px;"></div>
+            <label>&middot; o fechas espec&iacute;ficas:</label>
+            <select id="dayCustomDates" class="local-sel" multiple size="4" style="min-width:150px;height:78px;" onchange="renderDailyChart()"></select>
+            <button type="button" class="local-btn-clear" onclick="clearDayCompare()">Limpiar</button>
           </div>
         </div>
         <div style="position:relative;height:300px;"><canvas id="chartDayLine"></canvas></div>
@@ -294,6 +309,8 @@ select[multiple]{min-height:100px;}
           </div>
           <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
             <div class="local-filters">
+              <label>Centro:</label>
+              <select id="dowRC" class="local-sel" onchange="renderDOWChart()"><option value="">Todos</option></select>
               <label>Grupo:</label>
               <select id="dowGrupo" class="local-sel" onchange="onDOWGrupoChange()"><option value="">Todos</option></select>
               <label>Familia:</label>
@@ -631,6 +648,10 @@ select[multiple]{min-height:100px;}
   addOpts('hGrupo',HG,'Todos');
   addOpts('hFamilia',HFA,'Todas');
 
+  // Venta por Día / Comportamiento DOW: filtro de Centro (usa catálogo RC de DH)
+  addOpts('dayRC',HRC,'Todos');
+  addOpts('dowRC',HRC,'Todos');
+
   // Ranking familia depends on grupo selection
   function updateRankFamilias(){
     var gv=document.getElementById('rankGrupo').value;
@@ -910,6 +931,7 @@ select[multiple]{min-height:100px;}
   // ══════════════════════════════════════════════════════════════════════════
   var cDayLine=null, cDOW=null;
   var _dowMonthSel = {};  // {monthNum: true/false}
+  var _dayDOWSel = {};    // {0..6 (getDay()): true/false} — comparación por día de semana en "Venta por Día"
 
   var DIAS_ES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
   var DOW_ORDER = [1,2,3,4,5,6,0]; // Mon→Sun
@@ -930,6 +952,27 @@ select[multiple]{min-height:100px;}
       if (!gEl) return;
       G.forEach(function(g){ var o=document.createElement('option'); o.value=g; o.textContent=g; gEl.appendChild(o); });
     });
+
+    // Weekday comparison chips (Lun..Dom) for "Venta por Día"
+    var chipsDiv = document.getElementById('dayDOWChips');
+    if (chipsDiv) {
+      ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].forEach(function(lbl, i){
+        var dowNum = DOW_ORDER[i]; // Mon..Sun mapped to JS getDay() values
+        var chip = document.createElement('div');
+        chip.className = 'dow-chip';
+        chip.textContent = lbl;
+        chip.dataset.dow = dowNum;
+        chip.onclick = function(){
+          _dayDOWSel[dowNum] = !_dayDOWSel[dowNum];
+          chip.classList.toggle('active', _dayDOWSel[dowNum]);
+          // Elegir día de semana y fechas específicas son modos excluyentes
+          if (_dayDOWSel[dowNum]) clearCustomDatesOnly();
+          renderDailyChart();
+        };
+        chipsDiv.appendChild(chip);
+      });
+    }
+    populateCustomDates();
 
     // Find available months from data
     var monthSet = {};
@@ -962,11 +1005,11 @@ select[multiple]{min-height:100px;}
   function onDayGrupoChange() {
     var grupoVal = document.getElementById('dayGrupo').value;
     var famEl = document.getElementById('dayFamilia');
-    // Clear and repopulate familia
+    // Clear and repopulate familia (catálogo de DH, para que coincida con HDATA)
     famEl.innerHTML = '<option value="">Todas</option>';
-    if (grupoVal && FPG[grupoVal]) {
-      FPG[grupoVal].forEach(function(fai){
-        var o=document.createElement('option'); o.value=FA[fai]; o.textContent=cap(FA[fai]); famEl.appendChild(o);
+    if (grupoVal && HFPG[grupoVal]) {
+      HFPG[grupoVal].forEach(function(fai){
+        var o=document.createElement('option'); o.value=HFA[fai]; o.textContent=cap(HFA[fai]); famEl.appendChild(o);
       });
     }
     renderDailyChart();
@@ -976,48 +1019,99 @@ select[multiple]{min-height:100px;}
     var grupoVal = document.getElementById('dowGrupo').value;
     var famEl = document.getElementById('dowFamilia');
     famEl.innerHTML = '<option value="">Todas</option>';
-    if (grupoVal && FPG[grupoVal]) {
-      FPG[grupoVal].forEach(function(fai){
-        var o=document.createElement('option'); o.value=FA[fai]; o.textContent=cap(FA[fai]); famEl.appendChild(o);
+    if (grupoVal && HFPG[grupoVal]) {
+      HFPG[grupoVal].forEach(function(fai){
+        var o=document.createElement('option'); o.value=HFA[fai]; o.textContent=cap(HFA[fai]); famEl.appendChild(o);
       });
     }
     renderDOWChart();
   }
 
-  function getDayFilteredData(grupoElId, famElId) {
+  // Nota: Venta por Día y Comportamiento DOW usan HDATA (dh) en vez de DATA (dv)
+  // para poder filtrar por Centro de Venta (RC), igual que Ventas por Hora.
+  function getDayFilteredData(rcElId, grupoElId, famElId) {
     var sedeSet  = getSedeFilter();
     var dateFrom = document.getElementById('fDateFrom') ? document.getElementById('fDateFrom').value : '';
     var dateTo   = document.getElementById('fDateTo')   ? document.getElementById('fDateTo').value   : '';
+    var rcVal    = document.getElementById(rcElId    || 'dayRC').value;
     var grupoVal = document.getElementById(grupoElId || 'dayGrupo').value;
     var famVal   = document.getElementById(famElId   || 'dayFamilia').value;
-    var gi  = grupoVal ? G.indexOf(grupoVal) : -1;
-    var fai = famVal   ? FA.indexOf(famVal)  : -1;
+    var rci = rcVal    !== '' ? +rcVal          : -1;
+    var gi  = grupoVal ? HG.indexOf(grupoVal)   : -1;
+    var fai = famVal   ? HFA.indexOf(famVal)    : -1;
 
-    return DATA.filter(function(r){
-      var fecha = F[r[0]];
+    return HDATA.filter(function(r){
+      var fecha = HF[r[0]];
       if (dateFrom && fecha < dateFrom) return false;
       if (dateTo   && fecha > dateTo)   return false;
-      if (sedeSet  && !sedeSet.has(r[1])) return false;
-      if (gi  >= 0 && r[2] !== gi)  return false;
-      if (fai >= 0 && r[3] !== fai) return false;
+      if (sedeSet  && !sedeSet.has(r[2])) return false;
+      if (rci >= 0 && r[3] !== rci) return false;
+      if (gi  >= 0 && r[4] !== gi)  return false;
+      if (fai >= 0 && r[5] !== fai) return false;
       return true;
     });
   }
 
+  // ── Comparación por día de semana / fechas específicas (Venta por Día) ──────
+  function populateCustomDates() {
+    var el = document.getElementById('dayCustomDates');
+    if (!el) return;
+    var dateFrom = document.getElementById('fDateFrom') ? document.getElementById('fDateFrom').value : '';
+    var dateTo   = document.getElementById('fDateTo')   ? document.getElementById('fDateTo').value   : '';
+    var prevSel = Array.from(el.selectedOptions).map(function(o){ return o.value; });
+    el.innerHTML = '';
+    var names=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+    F.forEach(function(d){
+      if (dateFrom && d < dateFrom) return;
+      if (dateTo   && d > dateTo)   return;
+      var dn = new Date(d+'T00:00:00').getDay();
+      var o = document.createElement('option');
+      o.value = d;
+      o.textContent = names[dn]+' '+d;
+      if (prevSel.indexOf(d) >= 0) o.selected = true;
+      el.appendChild(o);
+    });
+  }
+  function clearCustomDatesOnly() {
+    var el = document.getElementById('dayCustomDates');
+    if (el) Array.from(el.options).forEach(function(o){ o.selected = false; });
+  }
+  window.clearDayCompare = function(){
+    Object.keys(_dayDOWSel).forEach(function(k){ _dayDOWSel[k] = false; });
+    document.querySelectorAll('#dayDOWChips .dow-chip').forEach(function(c){ c.classList.remove('active'); });
+    clearCustomDatesOnly();
+    renderDailyChart();
+  };
+
   function renderDailyChart() {
-    var data = getDayFilteredData();
-    // Aggregate by date (respeta filtros de Grupo/Familia y Sede/fecha)
+    var data = getDayFilteredData('dayRC', 'dayGrupo', 'dayFamilia');
+    // Aggregate by date (respeta filtros de Centro/Grupo/Familia y Sede/fecha)
     var byDate = {};
     data.forEach(function(r){
-      var d = F[r[0]];
-      byDate[d] = (byDate[d]||0) + r[5];
+      var d = HF[r[0]];
+      byDate[d] = (byDate[d]||0) + r[6];
     });
 
-    // Ticket por huésped: ingreso del día (con el MISMO filtro Grupo/Familia/Sede) / huéspedes del día (sedes filtradas)
+    // Ticket por huésped: ingreso del día (con el MISMO filtro) / huéspedes del día (sedes filtradas)
     var sedeSet = getSedeFilter();
     var sedeNames = sedeSet ? Array.from(sedeSet).map(function(i){ return S[i]; }) : S;
 
     var dates = Object.keys(byDate).sort();
+
+    // Modo de comparación: fechas específicas (prioridad) > día(s) de semana > rango completo
+    var customEl = document.getElementById('dayCustomDates');
+    var customSel = customEl ? Array.from(customEl.selectedOptions).map(function(o){ return o.value; }) : [];
+    var activeDOW = Object.keys(_dayDOWSel).filter(function(k){ return _dayDOWSel[k]; }).map(Number);
+    var compareMode = null;
+    if (customSel.length > 0) {
+      var customSet = new Set(customSel);
+      dates = dates.filter(function(d){ return customSet.has(d); });
+      compareMode = 'dates';
+    } else if (activeDOW.length > 0) {
+      dates = dates.filter(function(d){ return activeDOW.indexOf(new Date(d+'T00:00:00').getDay()) >= 0; });
+      compareMode = 'dow';
+    }
+
     var vals  = dates.map(function(d){ return parseFloat((byDate[d]/1e6).toFixed(3)); });
     var tkts  = dates.map(function(d){
       var occDay = OCC_DAILY[d];
@@ -1027,11 +1121,24 @@ select[multiple]{min-height:100px;}
       return huespedes>0 ? Math.round(ing/huespedes) : null;
     });
 
-    // 7-day moving average
-    var ma7 = vals.map(function(_,i){
+    // 7-day moving average — no aplica cuando se compara por día de semana o fechas sueltas (los huecos la distorsionan)
+    var ma7 = compareMode ? dates.map(function(){ return null; }) : vals.map(function(_,i){
       var slice = vals.slice(Math.max(0,i-6), i+1);
       return parseFloat((slice.reduce(function(a,b){return a+b;},0)/slice.length).toFixed(3));
     });
+
+    // Subtítulo dinámico según modo
+    var subtitleEl = document.querySelector('#chartDayLine').closest('.chart-card').querySelector('.chart-subtitle');
+    if (subtitleEl) {
+      if (compareMode === 'dates') {
+        subtitleEl.textContent = 'Comparando ' + dates.length + ' fecha(s) seleccionada(s)';
+      } else if (compareMode === 'dow') {
+        var names=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+        subtitleEl.textContent = 'Comparando: ' + activeDOW.map(function(d){ return names[d]; }).join(', ');
+      } else {
+        subtitleEl.textContent = 'Ingresos diarios — barras + media móvil 7 días';
+      }
+    }
 
     if (cDayLine) cDayLine.destroy();
     var ctx = document.getElementById('chartDayLine').getContext('2d');
@@ -1068,19 +1175,19 @@ select[multiple]{min-height:100px;}
 
   function renderDOWChart() {
     // Aggregate TOTAL sales per day-of-week per month
-    // Use shared filter (sede + date from sidebar, grupo/familia from DOW local filters)
-    var dowData = getDayFilteredData('dowGrupo', 'dowFamilia');
+    // Use shared filter (sede + date from sidebar, Centro/Grupo/Familia locales del DOW)
+    var dowData = getDayFilteredData('dowRC', 'dowGrupo', 'dowFamilia');
 
     var byMonth = {};
     dowData.forEach(function(r){
-      var fecha = F[r[0]];
+      var fecha = HF[r[0]];
       var m = parseInt(fecha.split('-')[1]);
       if (!_dowMonthSel[m]) return;
       var dateObj = new Date(fecha + 'T00:00:00');
       var dow = dateObj.getDay();
       if (!byMonth[m]) byMonth[m] = {};
       if (!byMonth[m][dow]) byMonth[m][dow] = 0;
-      byMonth[m][dow] += r[5];
+      byMonth[m][dow] += r[6];
     });
 
     var activeMonths = Object.keys(_dowMonthSel).map(Number).sort(function(a,b){return a-b;})
@@ -1147,7 +1254,7 @@ select[multiple]{min-height:100px;}
   var _dayFilterEls = ['fSede','fDateFrom','fDateTo'];
   _dayFilterEls.forEach(function(id){
     var el = document.getElementById(id);
-    if (el) el.addEventListener('change', function(){ renderDailyChart(); renderDOWChart(); });
+    if (el) el.addEventListener('change', function(){ populateCustomDates(); renderDailyChart(); renderDOWChart(); });
   });
 
 
@@ -1193,6 +1300,13 @@ function initCompliance() {
 
   var PER_DC_SEDES=['LIMA','CUSCO','AREQUIPA','PARACAS','HUACACHINA'];
   window.getCpPais=function(){var el=document.getElementById('cp-pais');return el?el.value:'COL';};
+  window.getCpSedes=function(){
+    var pais=window.getCpPais();
+    return DC.sedes.filter(function(s){
+      var isPer=PER_DC_SEDES.indexOf(s)>=0;
+      return pais==='PER'?isPer:!isPer;
+    });
+  };
   window.populateCpSedeFilter=function(){
     var pais=window.getCpPais();
     var sedeEl = document.getElementById('cp-sede');
@@ -1290,7 +1404,7 @@ function renderCompliance() {
 function renderKPIs(DC) {
   var sedeVal = document.getElementById('cp-sede').value;
   var mesVal = parseInt(document.getElementById('cp-mes').value);
-  var sedes = sedeVal === 'ALL' ? DC.sedes : [sedeVal];
+  var sedes = sedeVal === 'ALL' ? window.getCpSedes() : [sedeVal];
 
   var totRealIng=0, totPptoIng=0, totRealCos=0, totPptoCos=0;
   var totRealTkt=0, totPptoTkt=0, tktCount=0, totOcup=0;
@@ -1371,7 +1485,7 @@ function renderRankTable() {
   }
 
   var rows = [];
-  DC.sedes.forEach(function(s) {
+  window.getCpSedes().forEach(function(s) {
     var effMes = (isCos && mesVal === 5) ? 4 : mesVal;
     var mList = effMes === 0 ? (isCos ? [1,2,3,4] : [1,2,3,4,5]) : [effMes];
 
@@ -1478,8 +1592,9 @@ function renderCompBarChart() {
   if (sedeVal === 'ALL') {
     // Compare all sedes for selected month
     titleEl.textContent = (isIng?'Ingresos':'Costos') + ' Real vs Presupuesto — ' + (mesVal===0?'YTD':DC.meses[mesVal-1]);
-    DC.sedes.forEach(function(s) {
-      var effMes = (!isIng && mesVal > 0 && (!DC.perf[DC.sedes[0]] || !DC.perf[DC.sedes[0]][mesVal] || !DC.perf[DC.sedes[0]][mesVal].real_cos)) ? 4 : mesVal;
+    var cpSedes1 = window.getCpSedes();
+    cpSedes1.forEach(function(s) {
+      var effMes = (!isIng && mesVal > 0 && (!DC.perf[cpSedes1[0]] || !DC.perf[cpSedes1[0]][mesVal] || !DC.perf[cpSedes1[0]][mesVal].real_cos)) ? 4 : mesVal;
       var mList = effMes===0 ? (isIng?[1,2,3,4,5]:[1,2,3,4]) : [effMes];
       var sumR=0, sumP=0;
       mList.forEach(function(m) {
@@ -1523,7 +1638,7 @@ function renderTicketChart() {
   var DC = window._DC;
   if (!DC) return;
   var sedeVal = document.getElementById('cp-sede').value;
-  var sedes = sedeVal === 'ALL' ? DC.sedes : [sedeVal];
+  var sedes = sedeVal === 'ALL' ? window.getCpSedes() : [sedeVal];
   var colors = ['#FF4E35','#2196F3','#4CAF50','#FF9800','#9C27B0','#00BCD4','#F44336','#3F51B5','#8BC34A','#FF5722'];
   var mesLabels = [1,2,3,4,5].map(function(m){ return DC.meses[m-1].substring(0,3); });
 
@@ -1533,7 +1648,7 @@ function renderTicketChart() {
     var avgReal=[], pptoAvg=[];
     [1,2,3,4,5].forEach(function(m){
       var sumTkt=0, cnt=0, sumP=0, cntP=0;
-      DC.sedes.forEach(function(s){
+      sedes.forEach(function(s){
         var r = getRealForSede(DC,s,m);
         if (r.tkt!=null){ sumTkt+=r.tkt; cnt++; }
         var pp = DC.ppto[s]&&DC.ppto[s][m] ? DC.ppto[s][m].ppto_tkt : 0;
@@ -1581,7 +1696,7 @@ function renderOcupChart() {
   var datasets = [];
 
   if (sedeVal === 'ALL') {
-    DC.sedes.forEach(function(s,si){
+    window.getCpSedes().forEach(function(s,si){
       var data = [1,2,3,4,5].map(function(m){ return DC.ocup[s]&&DC.ocup[s][m]?DC.ocup[s][m]:0; });
       datasets.push({ label:s.charAt(0)+s.slice(1).toLowerCase(), data:data, backgroundColor:colors[si%colors.length]+'cc', borderRadius:3 });
     });
@@ -1606,7 +1721,7 @@ function renderCostoPctChart() {
   var DC = window._DC;
   if (!DC) return;
   var sedeVal = document.getElementById('cp-sede').value;
-  var sedes = sedeVal==='ALL' ? DC.sedes : [sedeVal];
+  var sedes = sedeVal==='ALL' ? window.getCpSedes() : [sedeVal];
   var mesLabels = [1,2,3,4].map(function(m){ return DC.meses[m-1].substring(0,3); });
   var realPct=[], pptoPct=[];
 
@@ -1783,11 +1898,11 @@ function renderCostoPctChart() {
     // Conversion chart
     var clabels, creal, cppto;
     if (sede === 'ALL') {
-      clabels = Object.keys(DZ.sedes).map(function(sc){return DZ.sedes[sc];});
-      creal = Object.keys(DZ.sedes).map(function(sc){
+      clabels = sedes.map(function(sc){return DZ.sedes[sc];});
+      creal = sedes.map(function(sc){
         var s=0,n=0; months.forEach(function(m){var md=DZ.monthlyBySede[sc]&&DZ.monthlyBySede[sc][m];if(md){s+=md.real_conv;n++;}});
         return n>0?parseFloat((s/n*100).toFixed(1)):0;});
-      cppto = Object.keys(DZ.sedes).map(function(sc){
+      cppto = sedes.map(function(sc){
         var s=0,n=0; months.forEach(function(m){var md=DZ.monthlyBySede[sc]&&DZ.monthlyBySede[sc][m];if(md&&md.ppto_conv>0){s+=md.ppto_conv;n++;}});
         return n>0?parseFloat((s/n*100).toFixed(1)):0;});
     } else {
@@ -1807,23 +1922,26 @@ function renderCostoPctChart() {
                 y:{ticks:{color:'#6B7280',callback:function(v){return v+'%';}},grid:{color:'#F3F4F6'},title:{display:true,text:'Tasa de Conversión',color:'#9CA3AF',font:{size:10}}}}}
     });
 
-    // Table
-    var rows = [];
+    // Table — ordenada por cumplimiento de conversión (real_conv/ppto_conv), de mayor a menor
+    var rowObjs = [];
     sedes.forEach(function(sc) {
       months.forEach(function(m) {
         var md = DZ.monthlyBySede[sc]&&DZ.monthlyBySede[sc][m];
         if(!md) return;
         var cv=md.ppto_qty>0?md.real_qty/md.ppto_qty:0;
         var cc=md.ppto_conv>0?md.real_conv/md.ppto_conv:0;
-        rows.push('<tr><td>'+DZ.sedes[sc]+'</td><td>'+DZ.monthLabels[m]+'</td>'+
+        var html='<tr><td>'+DZ.sedes[sc]+'</td><td>'+DZ.monthLabels[m]+'</td>'+
           '<td style="text-align:right">'+Math.round(md.real_qty).toLocaleString('es-CO')+'</td>'+
           '<td style="text-align:right">'+Math.round(md.ppto_qty).toLocaleString('es-CO')+'</td>'+
           '<td style="text-align:right">'+rb(cv)+'</td>'+
           '<td style="text-align:right">'+(md.real_conv*100).toFixed(1)+'%</td>'+
           '<td style="text-align:right">'+(md.ppto_conv*100).toFixed(1)+'%</td>'+
-          '<td style="text-align:right">'+rb(cc)+'</td></tr>');
+          '<td style="text-align:right">'+rb(cc)+'</td></tr>';
+        rowObjs.push({ cc: cc, html: html });
       });
     });
+    rowObjs.sort(function(a,b){ return b.cc - a.cc; });
+    var rows = rowObjs.map(function(r){ return r.html; });
     document.getElementById('dzTableBody').innerHTML = rows.join('');
 
   };
