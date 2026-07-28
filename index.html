@@ -107,6 +107,24 @@ select[multiple]{min-height:100px;}
 .dow-chip.active{background:#FF4E35;border-color:#FF4E35;color:#fff;}
 .dow-chip:hover:not(.active){border-color:#FF4E35;color:#FF4E35;}
 .day-compare-row{margin-top:6px;padding-top:6px;border-top:1px dashed #eee;}
+.date-picker-wrap{position:relative;display:inline-block;}
+.cal-trigger-btn{font-size:0.72rem;padding:4px 10px;border-radius:8px;border:1.5px solid #e0e0e0;background:#fff;color:#555;cursor:pointer;display:inline-flex;align-items:center;gap:5px;}
+.cal-trigger-btn:hover{border-color:#FF4E35;color:#FF4E35;}
+.cal-trigger-btn.has-sel{border-color:#FF4E35;color:#FF4E35;background:#FFF3F0;}
+.day-calendar-popup{position:absolute;top:calc(100% + 6px);left:0;z-index:50;background:#fff;border:1px solid #e5e5e5;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:10px 12px;width:216px;}
+.cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.cal-nav button{border:none;background:#f5f5f5;border-radius:6px;width:22px;height:22px;cursor:pointer;font-size:0.8rem;color:#666;line-height:1;}
+.cal-nav button:hover{background:#FF4E3522;color:#FF4E35;}
+.cal-nav-label{font-size:0.75rem;font-weight:700;color:#333;text-transform:capitalize;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+.cal-dow{font-size:0.6rem;color:#aaa;text-align:center;font-weight:700;padding-bottom:2px;}
+.cal-day{font-size:0.7rem;text-align:center;padding:4px 0;border-radius:6px;cursor:pointer;color:#444;}
+.cal-day:hover:not(.cal-disabled){background:#FF4E3522;}
+.cal-day.cal-selected{background:#FF4E35;color:#fff;font-weight:700;}
+.cal-day.cal-disabled{color:#ddd;cursor:default;}
+.cal-day.cal-empty{visibility:hidden;}
+.cal-footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:6px;border-top:1px solid #f0f0f0;font-size:0.65rem;color:#888;}
+.cal-footer button{font-size:0.65rem;border:none;background:none;color:#FF4E35;cursor:pointer;font-weight:700;}
 .local-btn-clear{font-size:0.68rem;padding:3px 9px;border-radius:12px;border:1.5px solid #e0e0e0;background:#fff;color:#888;cursor:pointer;}
 .local-btn-clear:hover{border-color:#FF4E35;color:#FF4E35;}
 .tab-panel{display:none;}
@@ -290,7 +308,10 @@ select[multiple]{min-height:100px;}
             <label>Comparar d&iacute;a de semana:</label>
             <div id="dayDOWChips" style="display:flex;gap:4px;"></div>
             <label>&middot; o fechas espec&iacute;ficas:</label>
-            <select id="dayCustomDates" class="local-sel" multiple size="4" style="min-width:150px;height:78px;" onchange="renderDailyChart()"></select>
+            <div class="date-picker-wrap">
+              <button type="button" id="dayCalendarBtn" class="cal-trigger-btn" onclick="toggleDateCalendar(event)">&#128197; Elegir fechas</button>
+              <div id="dayCalendarPopup" class="day-calendar-popup" style="display:none;"></div>
+            </div>
             <button type="button" class="local-btn-clear" onclick="clearDayCompare()">Limpiar</button>
           </div>
         </div>
@@ -972,7 +993,8 @@ select[multiple]{min-height:100px;}
         chipsDiv.appendChild(chip);
       });
     }
-    populateCustomDates();
+    var boundsInit = getDayRangeBounds();
+    _calMonth = boundsInit.to.slice(0,7);
 
     // Find available months from data
     var monthSet = {};
@@ -1053,33 +1075,110 @@ select[multiple]{min-height:100px;}
   }
 
   // ── Comparación por día de semana / fechas específicas (Venta por Día) ──────
-  function populateCustomDates() {
-    var el = document.getElementById('dayCustomDates');
-    if (!el) return;
+  // ── Mini-calendario desplegable para elegir fechas específicas ──────────────
+  var _customDatesSel = {};   // {'2026-07-24': true, ...}
+  var _calMonth = null;       // 'YYYY-MM' que se muestra actualmente en el popup
+  var MES_LARGO = ['','enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+  function getDayRangeBounds() {
     var dateFrom = document.getElementById('fDateFrom') ? document.getElementById('fDateFrom').value : '';
     var dateTo   = document.getElementById('fDateTo')   ? document.getElementById('fDateTo').value   : '';
-    var prevSel = Array.from(el.selectedOptions).map(function(o){ return o.value; });
-    el.innerHTML = '';
-    var names=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
-    F.forEach(function(d){
-      if (dateFrom && d < dateFrom) return;
-      if (dateTo   && d > dateTo)   return;
-      var dn = new Date(d+'T00:00:00').getDay();
-      var o = document.createElement('option');
-      o.value = d;
-      o.textContent = names[dn]+' '+d;
-      if (prevSel.indexOf(d) >= 0) o.selected = true;
-      el.appendChild(o);
-    });
+    return { from: dateFrom || (F[0]||''), to: dateTo || (F[F.length-1]||'') };
   }
-  function clearCustomDatesOnly() {
-    var el = document.getElementById('dayCustomDates');
-    if (el) Array.from(el.options).forEach(function(o){ o.selected = false; });
+
+  function updateCalendarBtnLabel() {
+    var btn = document.getElementById('dayCalendarBtn');
+    if (!btn) return;
+    var n = Object.keys(_customDatesSel).filter(function(k){ return _customDatesSel[k]; }).length;
+    btn.textContent = '\uD83D\uDCC5 ' + (n > 0 ? n + ' fecha' + (n>1?'s':'') + ' elegida' + (n>1?'s':'') : 'Elegir fechas');
+    btn.classList.toggle('has-sel', n > 0);
   }
+
+  window.toggleDateCalendar = function(ev){
+    if (ev) ev.stopPropagation();
+    var pop = document.getElementById('dayCalendarPopup');
+    if (!pop) return;
+    var show = pop.style.display === 'none' || !pop.style.display;
+    if (show) {
+      var bounds = getDayRangeBounds();
+      _calMonth = _calMonth || bounds.to.slice(0,7);
+      buildCalendarGrid();
+      pop.style.display = 'block';
+    } else {
+      pop.style.display = 'none';
+    }
+  };
+  document.addEventListener('click', function(ev){
+    var pop = document.getElementById('dayCalendarPopup');
+    var btn = document.getElementById('dayCalendarBtn');
+    if (!pop || pop.style.display === 'none') return;
+    if (pop.contains(ev.target) || (btn && btn.contains(ev.target))) return;
+    pop.style.display = 'none';
+  });
+
+  window.calNavMonth = function(delta, ev){
+    if (ev) ev.stopPropagation();
+    var d = new Date(_calMonth + '-01T00:00:00');
+    d.setMonth(d.getMonth() + delta);
+    _calMonth = d.toISOString().slice(0,7);
+    buildCalendarGrid();
+  };
+
+  window.calToggleDay = function(dateStr, ev){
+    if (ev) ev.stopPropagation();
+    _customDatesSel[dateStr] = !_customDatesSel[dateStr];
+    if (_customDatesSel[dateStr]) {
+      // Elegir fechas específicas y comparar por día de semana son modos excluyentes
+      Object.keys(_dayDOWSel).forEach(function(k){ _dayDOWSel[k] = false; });
+      document.querySelectorAll('#dayDOWChips .dow-chip').forEach(function(c){ c.classList.remove('active'); });
+    }
+    buildCalendarGrid();
+    updateCalendarBtnLabel();
+    renderDailyChart();
+  };
+
+  function buildCalendarGrid() {
+    var pop = document.getElementById('dayCalendarPopup');
+    if (!pop || !_calMonth) return;
+    var bounds = getDayRangeBounds();
+    var year = +_calMonth.slice(0,4), month = +_calMonth.slice(5,7); // 1-12
+    var firstOfMonth = new Date(year, month-1, 1);
+    var startDow = (firstOfMonth.getDay() + 6) % 7; // Lun=0..Dom=6
+    var daysInMonth = new Date(year, month, 0).getDate();
+
+    var html = '<div class="cal-nav">'
+      + '<button type="button" onclick="calNavMonth(-1,event)">&#8249;</button>'
+      + '<div class="cal-nav-label">' + MES_LARGO[month] + ' ' + year + '</div>'
+      + '<button type="button" onclick="calNavMonth(1,event)">&#8250;</button>'
+      + '</div><div class="cal-grid">';
+    ['L','M','X','J','V','S','D'].forEach(function(d){ html += '<div class="cal-dow">'+d+'</div>'; });
+    for (var i=0; i<startDow; i++) html += '<div class="cal-day cal-empty">.</div>';
+    for (var day=1; day<=daysInMonth; day++) {
+      var ds = _calMonth + '-' + (day<10?'0':'')+day;
+      var disabled = (bounds.from && ds < bounds.from) || (bounds.to && ds > bounds.to);
+      var sel = !!_customDatesSel[ds];
+      var cls = 'cal-day' + (disabled?' cal-disabled':'') + (sel?' cal-selected':'');
+      html += '<div class="'+cls+'"' + (disabled?'':' onclick="calToggleDay(\''+ds+'\',event)"') + '>' + day + '</div>';
+    }
+    html += '</div><div class="cal-footer"><span>Clic para elegir/quitar</span>'
+      + '<button type="button" onclick="clearCustomDatesOnly(event)">Limpiar fechas</button></div>';
+    pop.innerHTML = html;
+  }
+
+  window.clearCustomDatesOnly = function(ev){
+    if (ev) ev.stopPropagation();
+    _customDatesSel = {};
+    buildCalendarGrid();
+    updateCalendarBtnLabel();
+    renderDailyChart();
+  };
+
   window.clearDayCompare = function(){
     Object.keys(_dayDOWSel).forEach(function(k){ _dayDOWSel[k] = false; });
     document.querySelectorAll('#dayDOWChips .dow-chip').forEach(function(c){ c.classList.remove('active'); });
-    clearCustomDatesOnly();
+    _customDatesSel = {};
+    updateCalendarBtnLabel();
+    buildCalendarGrid();
     renderDailyChart();
   };
 
@@ -1099,14 +1198,14 @@ select[multiple]{min-height:100px;}
     var dates = Object.keys(byDate).sort();
 
     // Modo de comparación: fechas específicas (prioridad) > día(s) de semana > rango completo
-    var customEl = document.getElementById('dayCustomDates');
-    var customSel = customEl ? Array.from(customEl.selectedOptions).map(function(o){ return o.value; }) : [];
+    var customSel = Object.keys(_customDatesSel).filter(function(k){ return _customDatesSel[k]; });
     var activeDOW = Object.keys(_dayDOWSel).filter(function(k){ return _dayDOWSel[k]; }).map(Number);
     var compareMode = null;
     if (customSel.length > 0) {
       var customSet = new Set(customSel);
       dates = dates.filter(function(d){ return customSet.has(d); });
       compareMode = 'dates';
+
     } else if (activeDOW.length > 0) {
       dates = dates.filter(function(d){ return activeDOW.indexOf(new Date(d+'T00:00:00').getDay()) >= 0; });
       compareMode = 'dow';
@@ -1254,7 +1353,13 @@ select[multiple]{min-height:100px;}
   var _dayFilterEls = ['fSede','fDateFrom','fDateTo'];
   _dayFilterEls.forEach(function(id){
     var el = document.getElementById(id);
-    if (el) el.addEventListener('change', function(){ populateCustomDates(); renderDailyChart(); renderDOWChart(); });
+    if (el) el.addEventListener('change', function(){
+      var b = getDayRangeBounds();
+      _calMonth = b.to.slice(0,7);
+      var pop = document.getElementById('dayCalendarPopup');
+      if (pop && pop.style.display !== 'none') buildCalendarGrid();
+      renderDailyChart(); renderDOWChart();
+    });
   });
 
 
