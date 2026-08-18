@@ -851,9 +851,10 @@ select[multiple]{min-height:100px;}
   }
 
   function topProd(recs){
-    var r={};recs.forEach(function(x){r[x[4]]=(r[x[4]]||0)+x[5];});
+    var r={},q={};
+    recs.forEach(function(x){r[x[4]]=(r[x[4]]||0)+x[5];q[x[4]]=(q[x[4]]||0)+x[6];});
     var s=Object.entries(r).sort(function(a,b){return b[1]-a[1];});
-    return s.length?{name:P[+s[0][0]],val:s[0][1]}:null;
+    return s.length?{name:P[+s[0][0]],val:s[0][1],qty:q[+s[0][0]]||0}:null;
   }
 
   function updateSpecialKPIs(){
@@ -871,9 +872,12 @@ select[multiple]{min-height:100px;}
     }
     function set(id,sub,t,recs){
       document.getElementById(id).textContent=t?t.name:'Sin datos';
-      var avg=recs?avgDayByGroup(recs):null;
+      var avgCat=recs?avgDayByGroup(recs):null;
+      var avgProd=(t&&nDays>0)?Math.round(t.qty/nDays):null;
       document.getElementById(sub).innerHTML=t
-        ?(fmtCOP(t.val)+' en ingresos'+(avg?' &nbsp;·&nbsp; <span style="font-size:0.7rem;color:#888">'+avg+' uds/día</span>':''))
+        ?(fmtCOP(t.val)+' en ingresos'
+          +(avgProd?' &nbsp;·&nbsp; <span style="font-size:0.7rem;color:#888">'+avgProd+' uds/día (este producto)</span>':'')
+          +(avgCat?'<br><span style="font-size:0.68rem;color:#aaa;">'+avgCat+' uds/día &mdash; toda la categoría</span>':''))
         :'';
     }
     set('kpiAlimTop','kpiAlimSub',alim,filteredData.filter(function(r){return r[2]===gIdxAlim&&r[3]!==fIdxDes;}));
@@ -1550,8 +1554,11 @@ function renderKPIs(DC) {
 
   var _ipSedes = DC.in_progress || {};
   var _anyIP = false;
-  Object.keys(_ipSedes).forEach(function(s){ if(_ipSedes[s][mesVal]) _anyIP=true; });
-  var isMayoCos = _anyIP || mesVal === 0; // no cost data for in-progress months
+  var _ipMList = mesVal === 0 ? [1,2,3,4,5] : [mesVal];
+  sedes.forEach(function(s){
+    _ipMList.forEach(function(m){ if (_ipSedes[s] && _ipSedes[s][m]) _anyIP = true; });
+  });
+  var isMayoCos = _anyIP || mesVal === 0; // no cost data for in-progress months (solo de las sedes filtradas por pais/sede)
   var html = '';
   html += kpiCard('Ingresos Reales', fmtM(totRealIng), 'Ppto: ' + fmtM(totPptoIng),
     cumplIng != null ? '<span class="ck-badge ' + (cumplIng>=95?'ck-green':cumplIng>=80?'ck-orange':'ck-red') + '">' + cumplIng.toFixed(1) + '% cumpl.</span>' : '', 'ck-c1');
