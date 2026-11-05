@@ -3220,8 +3220,6 @@ function renderCostoPctChart() {
       if (k==='c') {
         kpiH += '<div class="comp-kpi dzk-c"><div class="ck-label"><span class="dzmix-sw" style="background:'+DZC.c+'"></span>Cortesías</div>'+
           '<div class="ck-val">'+(mixMonths.length?fmtN(catTot.c):'–')+'</div>'+
-          '<div class="ck-sub"><b style="color:#1a1a2e">No suman</b> al total de desayunos · equivalen al '+pct(catTot.c,mixTotal)+' de los desayunos que sí suman ('+fmtN(mixTotal)+')</div>'+
-          '<div class="ck-sub" style="margin-top:6px;">Desayunos sin prefijo en $0 o con 100% de descuento (desde oct 2026)</div>'+
           '<div class="ck-sub" style="margin-top:6px;">Top: '+(t.length? t[0]+' ('+fmtN(catProd.c[t[0]])+')' : '–')+'</div></div>';
         return;
       }
