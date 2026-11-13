@@ -127,6 +127,30 @@ select[multiple]{min-height:100px;}
 .cal-trigger-btn:hover{border-color:#FF4E35;color:#FF4E35;}
 .cal-trigger-btn.has-sel{border-color:#FF4E35;color:#FF4E35;background:#FFF3F0;}
 .day-calendar-popup{position:absolute;top:calc(100% + 6px);left:0;z-index:50;background:#fff;border:1px solid #e5e5e5;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:10px 12px;width:216px;}
+#dayCalendarPopup{width:262px;}
+.cal-mode{display:flex;gap:4px;margin-bottom:8px;background:#f5f5f5;border-radius:8px;padding:3px;}
+.cal-mode button{flex:1;border:none;background:none;border-radius:6px;font-size:0.68rem;font-weight:700;color:#777;padding:4px 0;cursor:pointer;}
+.cal-mode button.on{background:#fff;color:#FF4E35;box-shadow:0 1px 3px rgba(0,0,0,0.1);}
+.cal-grid.cal-wk{grid-template-columns:30px repeat(7,1fr);}
+.cal-wkn{font-size:0.6rem;text-align:center;padding:4px 0;border-radius:6px;cursor:pointer;color:#888;font-weight:700;background:#f7f7f7;}
+.cal-wkn:hover{background:#FF4E3522;color:#FF4E35;}
+.cal-wkn.cal-wkn-sel{color:#fff;}
+.cal-wkn.cal-disabled{color:#ddd;background:#fafafa;cursor:default;}
+.cal-grid.cal-wkmode .cal-day:not(.cal-disabled):not(.cal-empty){border-radius:0;}
+.cal-day.cal-wsel{color:#fff;font-weight:700;}
+.cal-range{background:#FAFAFA;border:1px solid var(--border);border-radius:8px;padding:8px;}
+.cal-range-row{display:flex;align-items:center;gap:6px;}
+.cal-range-row span{font-size:0.66rem;color:var(--muted);width:36px;}
+.cal-range-row input{flex:1;min-width:0;}
+.cal-range-all{font-size:0.66rem;border:none;background:none;color:#FF4E35;font-weight:700;cursor:pointer;text-align:left;padding:2px 0 0;}
+.wk-tbl{width:100%;border-collapse:collapse;font-size:0.76rem;}
+.wk-tbl th{text-align:right;font-size:0.64rem;color:#6B7280;text-transform:uppercase;letter-spacing:0.4px;padding:6px 8px;border-bottom:2px solid #eee;background:#fafafa;white-space:nowrap;}
+.wk-tbl th:first-child,.wk-tbl td:first-child{text-align:left;}
+.wk-tbl td{padding:6px 8px;border-bottom:1px solid #f3f3f3;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.wk-sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px;}
+.wk-up{color:#059669;font-weight:700;} .wk-dn{color:#DC2626;font-weight:700;}
+.fp-search{font-size:0.78rem;padding:4px 8px;border:1px solid #ddd;border-radius:6px;width:160px;}
+.fp-fam{font-size:0.64rem;color:#9CA3AF;margin-left:6px;}
 .cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
 .cal-nav button{border:none;background:#f5f5f5;border-radius:6px;width:22px;height:22px;cursor:pointer;font-size:0.8rem;color:#666;line-height:1;}
 .cal-nav button:hover{background:#FF4E3522;color:#FF4E35;}
@@ -313,12 +337,14 @@ select[multiple]{min-height:100px;}
       <select id="fSede" multiple onchange="applyFilters()"></select>
     </div>
     <div class="filter-group">
-      <label>Desde</label>
-      <input type="date" id="fDateFrom" value="2026-01-01" onchange="applyFilters()">
+      <label>Mes</label>
+      <select id="fMes" onchange="onMesChange()"><option value="">Todos los meses</option></select>
     </div>
-    <div class="filter-group">
-      <label>Hasta</label>
-      <input type="date" id="fDateTo" value="" onchange="applyFilters()">
+    <div class="filter-group cal-range" id="fCalRange">
+      <label id="fCalLbl">D&iacute;as &mdash; todo el per&iacute;odo</label>
+      <div class="cal-range-row"><span>Desde</span><input type="date" id="fDateFrom" value="2026-01-01" onchange="applyFilters()"></div>
+      <div class="cal-range-row"><span>Hasta</span><input type="date" id="fDateTo" value="" onchange="applyFilters()"></div>
+      <button type="button" class="cal-range-all" id="fCalAll" onclick="onMesChange()" style="display:none;">Todo el mes</button>
     </div>
   </div>
 
@@ -401,15 +427,16 @@ select[multiple]{min-height:100px;}
           <div class="local-filters day-compare-row">
             <label>Comparar d&iacute;a de semana:</label>
             <div id="dayDOWChips" style="display:flex;gap:4px;"></div>
-            <label>&middot; o fechas espec&iacute;ficas:</label>
+            <label>&middot; o fechas / semanas:</label>
             <div class="date-picker-wrap">
-              <button type="button" id="dayCalendarBtn" class="cal-trigger-btn" onclick="toggleDateCalendar(event)">&#128197; Elegir fechas</button>
+              <button type="button" id="dayCalendarBtn" class="cal-trigger-btn" onclick="toggleDateCalendar(event)">&#128197; Elegir fechas / semanas</button>
               <div id="dayCalendarPopup" class="day-calendar-popup" style="display:none;"></div>
             </div>
             <button type="button" class="local-btn-clear" onclick="clearDayCompare()">Limpiar</button>
           </div>
         </div>
         <div style="position:relative;height:300px;"><canvas id="chartDayLine"></canvas></div>
+        <div id="dayWeekSummary" style="display:none;margin-top:12px;overflow-x:auto;"></div>
       </div>
       </div>
     </div>
@@ -526,22 +553,23 @@ select[multiple]{min-height:100px;}
       </div>
     </div>
 
-    <!-- ⑤ TENDENCIA TOP 10 POR FAMILIA ─────────────────────────────────── -->
+    <!-- ⑤ FAMILIAS Y PRODUCTOS (unidades y $) ──────────────────────────── -->
     <div class="charts-row">
       <div class="chart-card full">
         <div class="chart-header">
           <div>
-            <div class="chart-title">Evolucion Semanal &mdash; Top 10 por Familia</div>
-            <div class="chart-subtitle">Fluctuacion de ingresos semana a semana</div>
+            <div class="chart-title">Ventas por Familia y Producto</div>
+            <div class="chart-subtitle" id="fpSub">Unidades y venta neta &mdash; seg&uacute;n pa&iacute;s, sede y fechas del filtro</div>
           </div>
           <div class="local-filters">
+            <label>Grupo:</label>
+            <select id="fpGrupo" class="local-sel" onchange="onFpGrupoChange()"><option value="">Todos</option></select>
             <label>Familia:</label>
-            <select id="selFamilia" onchange="updateTimeline()"></select>
+            <select id="fpFamilia" class="local-sel" onchange="updateFamProd()"><option value="">Todas</option></select>
+            <input type="search" id="fpBuscar" class="local-sel fp-search" placeholder="Buscar producto&hellip;" oninput="updateFamProd()">
           </div>
         </div>
-        <div style="position:relative;height:340px;">
-          <canvas id="chartTimeline"></canvas>
-        </div>
+        <div id="fpTableWrap"></div>
       </div>
     </div>
 
@@ -882,7 +910,7 @@ select[multiple]{min-height:100px;}
   var HDATA=DH.data, HFPG=DH.fpg;
 
   var rankMode='top', filteredData=[], filteredHoras=[];
-  var cDonut=null,cGroupBar=null,cTimeline=null,cHoras=null;
+  var cDonut=null,cGroupBar=null,cHoras=null;
   var _hourDOWSel = {};   // {0..6 (getDay()): true/false} — comparación por día de semana en "Ventas por Hora"
   var _customDatesSelHour = {}; // {'2026-07-24': true, ...} — fechas específicas para "Ventas por Hora"
   var _calMonthHour = null;      // 'YYYY-MM' que se muestra en el popup de calendario de "Ventas por Hora" (se fija en initDayCharts)
@@ -896,6 +924,77 @@ select[multiple]{min-height:100px;}
   var fIdxCocCas = FA.indexOf('cocteles de la casa');
   var fIdxCervs  = FA.indexOf('cervezas');
   var gIdxAlim   = G.indexOf('alimentos');
+
+  // ── FAMILIAS CONSOLIDADAS (pedido de Emma, nov-2026) ───────────────────────
+  // Las familias de Simphony se agrupan en categorías más simples para los filtros
+  // de "Familia" y la tabla de familias/productos. Una familia que no esté en la
+  // lista queda como categoría propia (con su nombre original).
+  var CAT_DEF = [
+    ['Desayunos',                 ['desayunos']],
+    ['Fuertes',                   ['hamburguesas','hamburguesas & sanduches','proteinas','pastas','wraps','pizzas','bowls','arroces','ensaladas','fondos','mar','sandwiches','entre panes','sopas','alitas','street food']],
+    ['Entradas / para compartir', ['para compartir']],
+    ['Snacks y grab & go',        ['snacks','grab & go','panificados']],
+    ['Postres',                   ['postres']],
+    ['Adiciones',                 ['porciones extras','adiciones pizza']],
+    ['Noches gastronómicas',      ['noches gastronomicas']],
+    ['Menú staff',                ['menu staff']],
+    ['Cervezas',                  ['cervezas']],
+    ['Cocteles',                  ['cocteles clasicos','cocteles de la casa']],
+    ['Happy hour y promos',       ['happy hour','promos low cost']],
+    ['Botellas',                  ['@botella ']],
+    ['Shots',                     ['@shot ']],
+    ['Vino por copa',             ['copa vino']],
+    ['Descorches',                ['descorches','descorches*']],
+    ['Bebidas frías',             ['bebidas frias','jugos','smoothie y batidos']],
+    ['Bebidas calientes',         ['bebidas calientes']],
+    ['Extras bar',                ['extras bar']],
+    ['Combos',                    ['combos']],
+    ['Eventos',                   ['menu eventos','cover','cover eventos']]
+  ];
+  var CAT_ORDER = CAT_DEF.map(function(c){ return c[0]; });
+  function catOf(fam){
+    var f = String(fam||'').replace(/&amp;/g,'&').trim().toLowerCase();
+    for (var i=0;i<CAT_DEF.length;i++){
+      var L = CAT_DEF[i][1];
+      for (var j=0;j<L.length;j++){
+        var k = L[j];
+        if (k.charAt(0)==='@' ? f.indexOf(k.slice(1))===0 : f===k) return CAT_DEF[i][0];
+      }
+    }
+    return cap(f);
+  }
+  // Índices por categoría para dv (FA/FPG) y dh (HFA/HFPG); grupos de cada categoría
+  function buildCatIdx(famArr, fpg){
+    var famCat = famArr.map(catOf), byCat = {}, grpCat = {};
+    famCat.forEach(function(c,i){ (byCat[c]=byCat[c]||[]).push(i); });
+    Object.keys(fpg||{}).forEach(function(g){
+      (fpg[g]||[]).forEach(function(fi){ var c=famCat[fi]; if(c==null) return; (grpCat[g]=grpCat[g]||{})[c]=true; });
+    });
+    return {famCat:famCat, byCat:byCat, grpCat:grpCat};
+  }
+  var CATV = buildCatIdx(FA, FPG);
+  var CATH = buildCatIdx(HFA, HFPG);
+  window._CATH = CATH;
+  window._CATV = CATV; window._catOf = catOf;
+  function catSort(a,b){
+    var ia=CAT_ORDER.indexOf(a), ib=CAT_ORDER.indexOf(b);
+    if (ia<0) ia=999; if (ib<0) ib=999;
+    return ia!==ib ? ia-ib : a.localeCompare(b);
+  }
+  // Llena un <select> de familia con las categorías (todas o solo las del grupo)
+  function fillCatSelect(elId, ci, grupoName){
+    var el=document.getElementById(elId); if(!el) return;
+    var prev=el.value;
+    el.innerHTML='<option value="">Todas</option>';
+    var cats;
+    if (grupoName) cats = Object.keys(ci.grpCat[grupoName]||{});
+    else { var u={}; Object.keys(ci.grpCat).forEach(function(g){ Object.keys(ci.grpCat[g]).forEach(function(c){ u[c]=true; }); }); cats=Object.keys(u); }
+    cats = cats.filter(function(c){ return (ci.byCat[c]||[]).length; }).sort(catSort);
+    cats.forEach(function(c){ var o=document.createElement('option'); o.value=c; o.textContent=c; el.appendChild(o); });
+    if (prev && cats.indexOf(prev)>=0) el.value=prev;
+  }
+  // Set de índices de familia para la categoría elegida (null = todas)
+  function catFamSet(ci, cat){ return cat ? new Set(ci.byCat[cat]||[]) : null; }
 
   // ── PAIS / MONEDA ──────────────────────────────────────────────────────────
   var COL_SEDE_NAMES=['Bogota','Cali','Cartagena Centro','Getsemani','Guatape','Medellin','Salento','San Andres','Santa Marta','Tayrona'];
@@ -939,14 +1038,15 @@ select[multiple]{min-height:100px;}
 
   // Init dropdowns - ventas
   populateSedeFilter();
-  addOpts('rankGrupo',G,'Todos');
+  addOpts('rankGrupo',G);
   addOpts('selGrupoPartic',G);
-  addOpts('selFamilia',FA);
+  addOpts('fpGrupo',G,'Todos');
+  fillCatSelect('fpFamilia',CATV,'');
 
   // Horas dropdowns
   addOpts('hRC',HRC,'Todos');
-  addOpts('hGrupo',HG,'Todos');
-  addOpts('hFamilia',HFA,'Todas');
+  addOpts('hGrupo',HG);
+  fillCatSelect('hFamilia',CATH,'');
 
   // Venta por Día / Comportamiento DOW: filtro de Centro (usa catálogo RC de DH)
   addOpts('dayRC',HRC,'Todos');
@@ -955,19 +1055,14 @@ select[multiple]{min-height:100px;}
   // Ranking familia depends on grupo selection
   function updateRankFamilias(){
     var gv=document.getElementById('rankGrupo').value;
-    var el=document.getElementById('rankFamilia');
-    el.innerHTML='<option value="">Todas</option>';
-    if(gv===''){FA.forEach(function(n,i){var o=document.createElement('option');o.value=i;o.textContent=cap(n);el.appendChild(o);});}
-    else{var gName=G[+gv]||gv;var fams=FPG[gName]||[];fams.forEach(function(fi){var o=document.createElement('option');o.value=fi;o.textContent=cap(FA[fi]);el.appendChild(o);});}
+    fillCatSelect('rankFamilia',CATV,gv===''?'':(G[+gv]||gv));
   }
+  updateRankFamilias();
   document.getElementById('rankGrupo').addEventListener('change',function(){updateRankFamilias();updateRanking();});
 
   window.updateHorasFamilias=function(){
     var gv=document.getElementById('hGrupo').value;
-    var el=document.getElementById('hFamilia');
-    el.innerHTML='<option value="">Todas</option>';
-    if(gv===''){HFA.forEach(function(n,i){var o=document.createElement('option');o.value=i;o.textContent=cap(n);el.appendChild(o);});}
-    else{var hgName=HG[+gv]||gv;var fams=HFPG[hgName]||[];fams.forEach(function(fi){var o=document.createElement('option');o.value=fi;o.textContent=cap(HFA[fi]);el.appendChild(o);});}
+    fillCatSelect('hFamilia',CATH,gv===''?'':(HG[+gv]||gv));
     updateHoras();
   };
 
@@ -1124,13 +1219,15 @@ select[multiple]{min-height:100px;}
     });
 
     updateBadge(dFrom,dTo);
-    updateKPIs();updateSpecialKPIs();updateRanking();updateDonut();updateGrupoPartic();updateHoras();updateTimeline();updateStaff();
+    updateKPIs();updateSpecialKPIs();updateRanking();updateDonut();updateGrupoPartic();updateHoras();updateFamProd();updateStaff();
   };
 
   window.resetFilters=function(){
     Array.from(document.getElementById('fSede').options).forEach(function(o){o.selected=false;});
+    var mEl=document.getElementById('fMes'); if(mEl) mEl.value='';
     document.getElementById('fDateFrom').value='2026-01-01';
     document.getElementById('fDateTo').value=F[F.length-1]||'';
+    if(typeof syncCalRange==='function') syncCalRange();
     applyFilters();
   };
 
@@ -1172,7 +1269,7 @@ select[multiple]{min-height:100px;}
     var fV=document.getElementById('hFamilia').value;
     var rcIdx=rcV===''?null:+rcV;
     var gIdx=gV===''?null:+gV;
-    var fIdx=fV===''?null:+fV;
+    var fSet=catFamSet(CATH,fV);
 
     // Comparación por día de semana / fechas específicas (igual que "Venta por Día")
     var customSelH = Object.keys(_customDatesSelHour).filter(function(k){ return _customDatesSelHour[k]; });
@@ -1182,7 +1279,7 @@ select[multiple]{min-height:100px;}
     var sub=filteredHoras.filter(function(r){
       if(rcIdx!==null&&r[3]!==rcIdx)return false;
       if(gIdx!==null&&r[4]!==gIdx)return false;
-      if(fIdx!==null&&r[5]!==fIdx)return false;
+      if(fSet&&!fSet.has(r[5]))return false;
       if(customSetH){ if(!customSetH.has(HF[r[0]])) return false; }
       else if(activeDOWH.length>0){ if(activeDOWH.indexOf(new Date(HF[r[0]]+'T00:00:00').getDay())<0) return false; }
       return true;
@@ -1225,36 +1322,72 @@ select[multiple]{min-height:100px;}
     });
   };
 
-  window.updateTimeline=function(){
-    var fami=+document.getElementById('selFamilia').value;
-    var fData=filteredData.filter(function(r){return r[3]===fami;});
-    var pr={};fData.forEach(function(r){pr[r[4]]=(pr[r[4]]||0)+r[5];});
-    var top10=Object.entries(pr).sort(function(a,b){return b[1]-a[1];}).slice(0,10).map(function(x){return +x[0];});
-    var wkSet={},wkProd={};
-    fData.filter(function(r){return top10.indexOf(r[4])>=0;}).forEach(function(r){
-      var wk=getWeek(F[r[0]]);wkSet[wk]=true;
-      if(!wkProd[r[4]])wkProd[r[4]]={};
-      wkProd[r[4]][wk]=(wkProd[r[4]][wk]||0)+r[5];
+  // ── VENTAS POR FAMILIA Y PRODUCTO (reemplaza "Evolución semanal") ────────────
+  // Misma lógica de tabla desplegable de la pestaña Desayunos: familia consolidada →
+  // productos, con unidades y venta neta. Responde a país, sede y fechas del filtro.
+  var _fpOpen = {};
+  function fpEsc(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+  function fpJs(t){ return String(t).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+  window.onFpGrupoChange=function(){
+    var gv=document.getElementById('fpGrupo').value;
+    fillCatSelect('fpFamilia',CATV,gv===''?'':(G[+gv]||gv));
+    updateFamProd();
+  };
+  window.fpToggle=function(c){ _fpOpen[c]=!_fpOpen[c]; updateFamProd(); };
+  window.fpToggleAll=function(open){
+    Object.keys(CATV.byCat).forEach(function(c){ _fpOpen[c]=open; });
+    updateFamProd();
+  };
+  function fpMoney(v){ return v<0 ? '-'+fmtCOP(-v) : fmtCOP(v); }
+  window.updateFamProd=function(){
+    var wrap=document.getElementById('fpTableWrap'); if(!wrap) return;
+    var gv=document.getElementById('fpGrupo').value, fv=document.getElementById('fpFamilia').value;
+    var q=(document.getElementById('fpBuscar').value||'').trim().toLowerCase();
+    var gIdx=gv===''?null:+gv, fSet=catFamSet(CATV,fv);
+    var dFrom=document.getElementById('fDateFrom').value||F[0], dTo=document.getElementById('fDateTo').value||F[F.length-1];
+    if(dTo>F[F.length-1]) dTo=F[F.length-1]; if(dFrom<F[0]) dFrom=F[0];
+    var days=Math.max(1,Math.round((new Date(dTo+'T00:00:00')-new Date(dFrom+'T00:00:00'))/864e5)+1);
+    var cats={}, totV=0, totQ=0;
+    filteredData.forEach(function(r){
+      if(gIdx!==null&&r[2]!==gIdx) return;
+      if(fSet&&!fSet.has(r[3])) return;
+      if(q && String(P[r[4]]).toLowerCase().indexOf(q)<0) return;
+      var c=CATV.famCat[r[3]];
+      var o=cats[c]||(cats[c]={v:0,q:0,prod:{}});
+      o.v+=r[5]; o.q+=r[6];
+      var k=r[4]+'|'+r[3];
+      var x=o.prod[k]||(o.prod[k]={p:r[4],f:r[3],v:0,q:0});
+      x.v+=r[5]; x.q+=r[6];
+      totV+=r[5]; totQ+=r[6];
     });
-    var weeks=Object.keys(wkSet).sort();
-    var wkLbls=weeks.map(function(w){var p=w.split('-');return p[2]+'/'+p[1];});
-    var datasets=top10.map(function(pi,i){return{
-      label:P[pi],data:weeks.map(function(w){return(wkProd[pi]||{})[w]||0;}),
-      borderColor:PAL[i%PAL.length],backgroundColor:PAL[i%PAL.length]+'18',
-      borderWidth:2,pointRadius:3,tension:0.3,fill:false
-    };});
-    if(cTimeline)cTimeline.destroy();
-    cTimeline=new Chart(document.getElementById('chartTimeline').getContext('2d'),{
-      type:'line',data:{labels:wkLbls,datasets:datasets},
-      options:{responsive:true,maintainAspectRatio:false,
-        interaction:{mode:'index',intersect:false},
-        plugins:{legend:{labels:{color:'#6B7280',font:{size:10},padding:10,boxWidth:12}},
-          tooltip:{callbacks:{label:function(ctx){return ' '+ctx.dataset.label+': '+fmtCOP(ctx.parsed.y);}}}},
-        scales:{
-          x:{ticks:{color:'#6B7280'},grid:{color:'#F3F4F6'}},
-          y:{ticks:{color:'#6B7280',callback:function(v){return fmtCOP(v);}},grid:{color:'#F3F4F6'}}
-        }}
+    var fmtD=function(d){var p=d.split('-');return p[2]+'/'+p[1]+'/'+p[0];};
+    document.getElementById('fpSub').innerHTML='Unidades y venta neta por familia &mdash; '+fmtD(dFrom)+' al '+fmtD(dTo)+' ('+days+' d&iacute;as)'+(q?' &middot; productos que contienen &laquo;'+fpEsc(q)+'&raquo;':'');
+    var cl=Object.keys(cats).filter(function(c){ return Math.abs(cats[c].v)>0.5||cats[c].q!==0; })
+      .sort(function(a,b){ return cats[b].v-cats[a].v; });
+    if(!cl.length){ wrap.innerHTML='<div class="dzprod-empty" style="padding:16px;color:#888;font-size:0.8rem;">Sin ventas para este filtro.</div>'; return; }
+    var lead=Math.max(cats[cl[0]].v,1);
+    var autoOpen = !!q || cl.length===1;
+    var h='<div class="dz-famtools"><span>Haz clic en una familia para ver sus productos.</span> <button type="button" onclick="fpToggleAll(true)">Abrir todas</button><button type="button" onclick="fpToggleAll(false)">Cerrar todas</button></div>';
+    h+='<table class="dz-tbl dz-famtbl"><thead><tr><th>Familia / producto</th><th class="r">Uds</th><th class="r">Venta neta</th><th class="r">%</th><th class="r">Precio prom.</th><th class="r">Uds/d&iacute;a</th><th class="r">Venta/d&iacute;a</th><th style="width:14%"></th></tr></thead><tbody>';
+    cl.forEach(function(c){
+      var o=cats[c], open=autoOpen||!!_fpOpen[c];
+      var pl=Object.keys(o.prod).map(function(k){return o.prod[k];}).filter(function(x){ return Math.abs(x.v)>0.5||x.q!==0; })
+        .sort(function(a,b){ return b.v-a.v || b.q-a.q; });
+      var nFam={}; pl.forEach(function(x){ nFam[x.f]=true; });
+      var multi=Object.keys(nFam).length>1;
+      h+='<tr class="dz-famrow'+(open?' open':'')+'" onclick="fpToggle(\''+fpJs(c)+'\')"><td><span class="dz-caret">'+(open?'▾':'▸')+'</span><b>'+fpEsc(c)+'</b> <span class="dz-np">'+pl.length+' prod.</span></td>'+
+         '<td class="r">'+fmtNum(Math.round(o.q))+'</td><td class="r"><b>'+fpMoney(o.v)+'</b></td><td class="r">'+(totV>0?(o.v/totV*100).toFixed(1)+'%':'–')+'</td>'+
+         '<td class="r">'+(o.q>0?fpMoney(o.v/o.q):'–')+'</td><td class="r">'+(o.q/days).toFixed(1)+'</td><td class="r">'+fpMoney(o.v/days)+'</td>'+
+         '<td><div class="dzprod-bar" style="margin:0"><div style="width:'+Math.max(0,o.v/lead*100)+'%;background:#FF4E35"></div></div></td></tr>';
+      if(open){
+        pl.forEach(function(x){
+          h+='<tr class="dz-prodrow"><td>'+fpEsc(P[x.p])+(multi?'<span class="fp-fam">'+fpEsc(cap(FA[x.f]))+'</span>':'')+'</td><td class="r">'+fmtNum(Math.round(x.q))+'</td><td class="r">'+fpMoney(x.v)+'</td>'+
+             '<td class="r">'+(o.v>0?(x.v/o.v*100).toFixed(0)+'% de la fam.':'–')+'</td><td class="r">'+(x.q>0?fpMoney(x.v/x.q):'–')+'</td><td class="r">'+(x.q/days).toFixed(1)+'</td><td class="r">'+fpMoney(x.v/days)+'</td><td></td></tr>';
+        });
+      }
     });
+    h+='<tr class="tot"><td>Total</td><td class="r">'+fmtNum(Math.round(totQ))+'</td><td class="r">'+fpMoney(totV)+'</td><td class="r">100%</td><td class="r">'+(totQ>0?fpMoney(totV/totQ):'–')+'</td><td class="r">'+(totQ/days).toFixed(1)+'</td><td class="r">'+fpMoney(totV/days)+'</td><td></td></tr>';
+    wrap.innerHTML=h+'</tbody></table>';
   };
 
   function getWeek(d){
@@ -1322,10 +1455,10 @@ select[multiple]{min-height:100px;}
     var partic=document.getElementById('selGrupoPartic');
     if(partic && gv!=='' && partic.value!==gv){ partic.value=gv; updateGrupoPartic(); }
     var gIdx=gv===''?null:+gv;
-    var fIdx=fv===''?null:+fv;
+    var fSet=catFamSet(CATV,fv);
     var sub=filteredData.filter(function(r){
       if(gIdx!==null&&r[2]!==gIdx)return false;
-      if(fIdx!==null&&r[3]!==fIdx)return false;
+      if(fSet&&!fSet.has(r[3]))return false;
       return true;
     });
     var pr={},pq={};sub.forEach(function(r){pr[r[4]]=(pr[r[4]]||0)+r[5];pq[r[4]]=(pq[r[4]]||0)+r[6];});
@@ -1376,6 +1509,53 @@ select[multiple]{min-height:100px;}
     }
   })();
 
+  // ── FILTRO DE MES (primero el mes, luego los días en modo calendario) ────────
+  (function(){
+    var el=document.getElementById('fMes'); if(!el) return;
+    var ML=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    var ms=[]; F.forEach(function(d){ var m=d.slice(0,7); if(ms.indexOf(m)<0) ms.push(m); });
+    ms.sort().reverse().forEach(function(m){
+      var o=document.createElement('option'); o.value=m; o.textContent=ML[+m.slice(5)-1]+' '+m.slice(0,4); el.appendChild(o);
+    });
+    var fe=document.getElementById('fDateFrom'), te=document.getElementById('fDateTo');
+    fe.min=te.min=F[0]; fe.max=te.max=F[F.length-1];
+  })();
+  function mesBounds(m){
+    if(!m) return {from:F[0]||'', to:F[F.length-1]||''};
+    var ds=F.filter(function(d){ return d.slice(0,7)===m; });
+    var last=new Date(+m.slice(0,4), +m.slice(5,7), 0).getDate();
+    return {from:m+'-01', to: ds.length ? ds[ds.length-1] : m+'-'+last};
+  }
+  function syncCalRange(){
+    var m=document.getElementById('fMes').value;
+    var fe=document.getElementById('fDateFrom'), te=document.getElementById('fDateTo');
+    var b=mesBounds(m);
+    fe.min=te.min=b.from; fe.max=te.max=b.to;
+    var ML=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    document.getElementById('fCalLbl').innerHTML = m ? 'D&iacute;as de '+ML[+m.slice(5)-1]+' (calendario)' : 'D&iacute;as &mdash; todo el per&iacute;odo';
+    var all=document.getElementById('fCalAll');
+    if(all) all.style.display = (m && (fe.value!==b.from || te.value!==b.to)) ? '' : 'none';
+  }
+  // Al elegir mes: el rango de días se ajusta a ese mes (de su día 1 al último con datos)
+  window.onMesChange=function(){
+    var m=document.getElementById('fMes').value;
+    var b=mesBounds(m);
+    var fe=document.getElementById('fDateFrom'), te=document.getElementById('fDateTo');
+    fe.min=te.min=F[0]; fe.max=te.max=F[F.length-1];
+    fe.value = m ? b.from : '2026-01-01';
+    te.value = b.to;
+    syncCalRange();
+    te.dispatchEvent(new Event('change'));   // dispara applyFilters + gráficas de día
+  };
+  ['fDateFrom','fDateTo'].forEach(function(id){
+    document.getElementById(id).addEventListener('change', function(){
+      var fe=document.getElementById('fDateFrom'), te=document.getElementById('fDateTo');
+      if(fe.value && te.value && fe.value>te.value){ var t=fe.value; fe.value=te.value; te.value=t; applyFilters(); }
+      syncCalRange();
+    });
+  });
+  syncCalRange();
+
   applyFilters();
 
 
@@ -1405,6 +1585,8 @@ select[multiple]{min-height:100px;}
       if (!gEl) return;
       G.forEach(function(g){ var o=document.createElement('option'); o.value=g; o.textContent=g; gEl.appendChild(o); });
     });
+    fillCatSelect('dayFamilia', CATH, '');
+    fillCatSelect('dowFamilia', CATH, '');
 
     // Weekday comparison chips (Lun..Dom) for "Venta por Día"
     var chipsDiv = document.getElementById('dayDOWChips');
@@ -1480,26 +1662,14 @@ select[multiple]{min-height:100px;}
 
   function onDayGrupoChange() {
     var grupoVal = document.getElementById('dayGrupo').value;
-    var famEl = document.getElementById('dayFamilia');
-    // Clear and repopulate familia (catálogo de DH, para que coincida con HDATA)
-    famEl.innerHTML = '<option value="">Todas</option>';
-    if (grupoVal && HFPG[grupoVal]) {
-      HFPG[grupoVal].forEach(function(fai){
-        var o=document.createElement('option'); o.value=HFA[fai]; o.textContent=cap(HFA[fai]); famEl.appendChild(o);
-      });
-    }
+    // Familias consolidadas (catálogo de DH, para que coincida con HDATA)
+    fillCatSelect('dayFamilia', CATH, grupoVal || '');
     renderDailyChart();
   }
 
   function onDOWGrupoChange() {
     var grupoVal = document.getElementById('dowGrupo').value;
-    var famEl = document.getElementById('dowFamilia');
-    famEl.innerHTML = '<option value="">Todas</option>';
-    if (grupoVal && HFPG[grupoVal]) {
-      HFPG[grupoVal].forEach(function(fai){
-        var o=document.createElement('option'); o.value=HFA[fai]; o.textContent=cap(HFA[fai]); famEl.appendChild(o);
-      });
-    }
+    fillCatSelect('dowFamilia', CATH, grupoVal || '');
     renderDOWChart();
   }
 
@@ -1514,7 +1684,7 @@ select[multiple]{min-height:100px;}
     var famVal   = document.getElementById(famElId   || 'dayFamilia').value;
     var rci = rcVal    !== '' ? +rcVal          : -1;
     var gi  = grupoVal ? HG.indexOf(grupoVal)   : -1;
-    var fai = famVal   ? HFA.indexOf(famVal)    : -1;
+    var faSet = catFamSet(CATH, famVal);
 
     return HDATA.filter(function(r){
       var fecha = HF[r[0]];
@@ -1523,7 +1693,7 @@ select[multiple]{min-height:100px;}
       if (sedeSet  && !sedeSet.has(r[2])) return false;
       if (rci >= 0 && r[3] !== rci) return false;
       if (gi  >= 0 && r[4] !== gi)  return false;
-      if (fai >= 0 && r[5] !== fai) return false;
+      if (faSet && !faSet.has(r[5])) return false;
       return true;
     });
   }
@@ -1531,6 +1701,25 @@ select[multiple]{min-height:100px;}
   // ── Comparación por día de semana / fechas específicas (Venta por Día) ──────
   // ── Mini-calendario desplegable para elegir fechas específicas ──────────────
   var _customDatesSel = {};   // {'2026-07-24': true, ...}
+  // Semanas (lunes a domingo) elegidas para comparar: {'2026-11-02': true} (clave = lunes)
+  var _customWeeksSel = {};
+  var _calWeekMode = false;
+  var WK_COLORS = ['#FF4E35','#3B82F6','#10B981','#F59E0B','#8B5CF6','#EC4899','#06B6D4','#84CC16','#6366F1','#EF4444'];
+  function ymdLocal(dt){ return dt.getFullYear()+'-'+('0'+(dt.getMonth()+1)).slice(-2)+'-'+('0'+dt.getDate()).slice(-2); }
+  function mondayOf(ds){ var dt=new Date(ds+'T00:00:00'); var k=(dt.getDay()+6)%7; dt.setDate(dt.getDate()-k); return ymdLocal(dt); }
+  function addDaysStr(ds,n){ var dt=new Date(ds+'T00:00:00'); dt.setDate(dt.getDate()+n); return ymdLocal(dt); }
+  function isoWeekNum(ds){
+    var dt=new Date(ds+'T00:00:00'); dt.setDate(dt.getDate()+3-((dt.getDay()+6)%7));
+    var w1=new Date(dt.getFullYear(),0,4);
+    return 1+Math.round(((dt-w1)/864e5-3+((w1.getDay()+6)%7))/7);
+  }
+  function selectedWeeks(){ return Object.keys(_customWeeksSel).filter(function(k){ return _customWeeksSel[k]; }).sort(); }
+  function weekColor(mon){ var ws=selectedWeeks(); var i=ws.indexOf(mon); return WK_COLORS[(i<0?0:i)%WK_COLORS.length]; }
+  function weekLabel(mon){
+    var sun=addDaysStr(mon,6), ML=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    var f=function(d){ return +d.slice(8)+' '+ML[+d.slice(5,7)-1]; };
+    return 'S'+isoWeekNum(mon)+' ('+f(mon)+' – '+f(sun)+')';
+  }
   var _calMonth = null;       // 'YYYY-MM' que se muestra actualmente en el popup
   var MES_LARGO = ['','enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 
@@ -1544,8 +1733,10 @@ select[multiple]{min-height:100px;}
     var btn = document.getElementById('dayCalendarBtn');
     if (!btn) return;
     var n = Object.keys(_customDatesSel).filter(function(k){ return _customDatesSel[k]; }).length;
-    btn.textContent = '\uD83D\uDCC5 ' + (n > 0 ? n + ' fecha' + (n>1?'s':'') + ' elegida' + (n>1?'s':'') : 'Elegir fechas');
-    btn.classList.toggle('has-sel', n > 0);
+    var nw = selectedWeeks().length;
+    btn.textContent = '\uD83D\uDCC5 ' + (nw > 0 ? nw + ' semana' + (nw>1?'s':'') + ' elegida' + (nw>1?'s':'')
+                     : n > 0 ? n + ' fecha' + (n>1?'s':'') + ' elegida' + (n>1?'s':'') : 'Elegir fechas / semanas');
+    btn.classList.toggle('has-sel', n > 0 || nw > 0);
   }
 
   window.toggleDateCalendar = function(ev){
@@ -1578,8 +1769,28 @@ select[multiple]{min-height:100px;}
     buildCalendarGrid();
   };
 
+  window.calSetMode = function(week, ev){
+    if (ev) ev.stopPropagation();
+    _calWeekMode = !!week;
+    buildCalendarGrid();
+  };
+  window.calToggleWeek = function(mon, ev){
+    if (ev) ev.stopPropagation();
+    _customWeeksSel[mon] = !_customWeeksSel[mon];
+    if (_customWeeksSel[mon]) {
+      // Semanas, fechas sueltas y día de semana son modos excluyentes
+      _customDatesSel = {};
+      Object.keys(_dayDOWSel).forEach(function(k){ _dayDOWSel[k] = false; });
+      document.querySelectorAll('#dayDOWChips .dow-chip').forEach(function(c){ c.classList.remove('active'); });
+    }
+    buildCalendarGrid();
+    updateCalendarBtnLabel();
+    renderDailyChart();
+  };
   window.calToggleDay = function(dateStr, ev){
     if (ev) ev.stopPropagation();
+    if (_calWeekMode) { calToggleWeek(mondayOf(dateStr), ev); return; }
+    _customWeeksSel = {};
     _customDatesSel[dateStr] = !_customDatesSel[dateStr];
     if (_customDatesSel[dateStr]) {
       // Elegir fechas específicas y comparar por día de semana son modos excluyentes
@@ -1599,29 +1810,50 @@ select[multiple]{min-height:100px;}
     var firstOfMonth = new Date(year, month-1, 1);
     var startDow = (firstOfMonth.getDay() + 6) % 7; // Lun=0..Dom=6
     var daysInMonth = new Date(year, month, 0).getDate();
+    var nw = selectedWeeks().length;
 
-    var html = '<div class="cal-nav">'
+    var html = '<div class="cal-mode">'
+      + '<button type="button" class="'+(_calWeekMode?'':'on')+'" onclick="calSetMode(false,event)">D&iacute;as</button>'
+      + '<button type="button" class="'+(_calWeekMode?'on':'')+'" onclick="calSetMode(true,event)">Semanas</button></div>'
+      + '<div class="cal-nav">'
       + '<button type="button" onclick="calNavMonth(-1,event)">&#8249;</button>'
       + '<div class="cal-nav-label">' + MES_LARGO[month] + ' ' + year + '</div>'
       + '<button type="button" onclick="calNavMonth(1,event)">&#8250;</button>'
-      + '</div><div class="cal-grid">';
+      + '</div><div class="cal-grid cal-wk'+(_calWeekMode?' cal-wkmode':'')+'">';
+    html += '<div class="cal-dow">Sem</div>';
     ['L','M','X','J','V','S','D'].forEach(function(d){ html += '<div class="cal-dow">'+d+'</div>'; });
-    for (var i=0; i<startDow; i++) html += '<div class="cal-day cal-empty">.</div>';
-    for (var day=1; day<=daysInMonth; day++) {
-      var ds = _calMonth + '-' + (day<10?'0':'')+day;
-      var disabled = (bounds.from && ds < bounds.from) || (bounds.to && ds > bounds.to);
-      var sel = !!_customDatesSel[ds];
-      var cls = 'cal-day' + (disabled?' cal-disabled':'') + (sel?' cal-selected':'');
-      html += '<div class="'+cls+'"' + (disabled?'':' onclick="calToggleDay(\''+ds+'\',event)"') + '>' + day + '</div>';
+    // Celdas: se arma semana por semana (columna de semana + 7 días)
+    var cells = [];
+    for (var i=0; i<startDow; i++) cells.push(null);
+    for (var day=1; day<=daysInMonth; day++) cells.push(day);
+    while (cells.length % 7) cells.push(null);
+    for (var w=0; w<cells.length/7; w++) {
+      var row = cells.slice(w*7, w*7+7);
+      var anyDay = row.filter(function(x){ return x!==null; })[0];
+      var dsAny = _calMonth + '-' + (anyDay<10?'0':'') + anyDay;
+      var mon = mondayOf(dsAny), sun = addDaysStr(mon,6);
+      var wkDisabled = (bounds.from && sun < bounds.from) || (bounds.to && mon > bounds.to);
+      var wSel = !!_customWeeksSel[mon], wc = wSel ? weekColor(mon) : '';
+      html += '<div class="cal-wkn'+(wkDisabled?' cal-disabled':'')+(wSel?' cal-wkn-sel':'')+'"'+(wSel?' style="background:'+wc+'"':'')
+        + (wkDisabled?'':' onclick="calToggleWeek(\''+mon+'\',event)" title="Elegir la semana del '+mon.slice(8)+'/'+mon.slice(5,7)+'"')+'>S'+isoWeekNum(mon)+'</div>';
+      row.forEach(function(dd){
+        if (dd===null) { html += '<div class="cal-day cal-empty">.</div>'; return; }
+        var ds = _calMonth + '-' + (dd<10?'0':'')+dd;
+        var disabled = (bounds.from && ds < bounds.from) || (bounds.to && ds > bounds.to);
+        var sel = !nw && !!_customDatesSel[ds];
+        var cls = 'cal-day' + (disabled?' cal-disabled':'') + (sel?' cal-selected':'') + (wSel&&!disabled?' cal-wsel':'');
+        html += '<div class="'+cls+'"' + (wSel&&!disabled?' style="background:'+wc+'"':'') + (disabled?'':' onclick="calToggleDay(\''+ds+'\',event)"') + '>' + dd + '</div>';
+      });
     }
-    html += '</div><div class="cal-footer"><span>Clic para elegir/quitar</span>'
-      + '<button type="button" onclick="clearCustomDatesOnly(event)">Limpiar fechas</button></div>';
+    html += '</div><div class="cal-footer"><span>'+(_calWeekMode?'Clic en un d&iacute;a o en <b>S#</b> elige la semana':'Clic en un d&iacute;a, o en <b>S#</b> para la semana')+'</span>'
+      + '<button type="button" onclick="clearCustomDatesOnly(event)">Limpiar</button></div>';
     pop.innerHTML = html;
   }
 
   window.clearCustomDatesOnly = function(ev){
     if (ev) ev.stopPropagation();
     _customDatesSel = {};
+    _customWeeksSel = {};
     buildCalendarGrid();
     updateCalendarBtnLabel();
     renderDailyChart();
@@ -1631,6 +1863,7 @@ select[multiple]{min-height:100px;}
     Object.keys(_dayDOWSel).forEach(function(k){ _dayDOWSel[k] = false; });
     document.querySelectorAll('#dayDOWChips .dow-chip').forEach(function(c){ c.classList.remove('active'); });
     _customDatesSel = {};
+    _customWeeksSel = {};
     updateCalendarBtnLabel();
     buildCalendarGrid();
     renderDailyChart();
@@ -1748,6 +1981,12 @@ select[multiple]{min-height:100px;}
     var sedeNames = sedeSet ? Array.from(sedeSet).map(function(i){ return S[i]; }) : S;
 
     var dates = Object.keys(byDate).sort();
+
+    // Modo semanas: comparar semanas completas (lun–dom) con su ticket promedio
+    var _wsel = selectedWeeks();
+    var _wsum = document.getElementById('dayWeekSummary');
+    if (_wsel.length) { renderWeeksCompare(byDate, sedeNames, _wsel); return; }
+    if (_wsum) { _wsum.style.display='none'; _wsum.innerHTML=''; }
 
     // Modo de comparación: fechas específicas (prioridad) > día(s) de semana > rango completo
     var customSel = Object.keys(_customDatesSel).filter(function(k){ return _customDatesSel[k]; });
@@ -1867,6 +2106,105 @@ select[multiple]{min-height:100px;}
         }
       }
     });
+  }
+
+  // Ppto de ticket por huésped de un día, ponderado por la ocupación de las sedes filtradas
+  function pptoTktDay(d, sedeNames){
+    var DCp = window._DC;
+    if (!DCp) { var el=document.getElementById('dc'); if (el) { try { DCp = window._DC = JSON.parse(el.textContent); } catch(e){} } }
+    if (!DCp || !DCp.ppto) return {num:0, den:0, fb:null};
+    var mk = String(+d.slice(5,7)), occDay = OCC_DAILY[d] || {}, num=0, den=0, fb=null;
+    sedeNames.forEach(function(sn){
+      var pp = DCp.ppto[sn === 'Getsemani' ? 'CARTAGENA GETSEMANI' : String(sn).toUpperCase()];
+      var t = pp && pp[mk] ? pp[mk].ppto_tkt : 0;
+      if (!t) return;
+      if (fb === null) fb = t;
+      var o = occDay[sn] || 0; num += t*o; den += o;
+    });
+    return {num:num, den:den, fb:fb};
+  }
+
+  function renderWeeksCompare(byDate, sedeNames, weeks) {
+    var bounds = getDayRangeBounds();
+    var lastData = HF[HF.length-1];
+    var fmtM = function(v){ return '$'+(v/1e6).toFixed(2)+'M'; };
+    var money = function(v){ return v==null ? '–' : '$'+Math.round(v).toLocaleString('es-CO'); };
+    var rows = weeks.map(function(mon){
+      var o = {mon:mon, days:0, venta:0, ventaOcc:0, hues:0, pn:0, pd:0, fb:null, byDow:[null,null,null,null,null,null,null], tktDow:[null,null,null,null,null,null,null], dates:[null,null,null,null,null,null,null]};
+      for (var i=0;i<7;i++){
+        var d = addDaysStr(mon,i);
+        o.dates[i] = d;
+        if ((bounds.from && d < bounds.from) || (bounds.to && d > bounds.to) || d > lastData) continue;
+        o.days++;
+        var v = byDate[d] || 0;
+        o.byDow[i] = parseFloat((v/1e6).toFixed(3));
+        o.venta += v;
+        var occDay = OCC_DAILY[d];
+        var h = occDay ? sedeNames.reduce(function(a,sn){ return a+(occDay[sn]||0); },0) : 0;
+        if (h > 0) { o.hues += h; o.ventaOcc += v; o.tktDow[i] = Math.round(v/h); }
+        var pp = pptoTktDay(d, sedeNames); o.pn += pp.num; o.pd += pp.den; if (o.fb===null) o.fb = pp.fb;
+      }
+      o.tkt = o.hues > 0 ? o.ventaOcc/o.hues : null;
+      o.ppto = o.pd > 0 ? o.pn/o.pd : (sedeNames.length===1 ? o.fb : null);
+      return o;
+    });
+
+    var subtitleEl = document.querySelector('#chartDayLine').closest('.chart-card').querySelector('.chart-subtitle');
+    if (subtitleEl) subtitleEl.textContent = 'Comparando ' + weeks.length + ' semana(s) día a día (lun–dom) · ticket promedio de cada semana en la tabla';
+
+    if (cDayLine) cDayLine.destroy();
+    cDayLine = new Chart(document.getElementById('chartDayLine').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'],
+        datasets: rows.map(function(o){
+          var c = weekColor(o.mon);
+          return { label: weekLabel(o.mon) + (o.tkt!=null ? ' · ticket ' + money(o.tkt) : ''), data: o.byDow,
+                   backgroundColor: c+'CC', borderColor: c, borderWidth: 1, borderRadius: 3, _row: o };
+        })
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{position:'top',labels:{boxWidth:12,font:{size:11}}},
+          tooltip:{ callbacks:{
+            title:function(items){ return items.length ? items[0].label : ''; },
+            label:function(c){
+              var o = c.dataset._row, i = c.dataIndex, d = o.dates[i];
+              var t = o.tktDow[i];
+              return 'S'+isoWeekNum(o.mon)+' · '+d.slice(8)+'/'+d.slice(5,7)+': $'+(c.parsed.y||0).toFixed(2)+'M'+(t!=null?' · ticket $'+t.toLocaleString('es-CO'):'');
+            }}}
+        },
+        scales:{
+          x:{ grid:{display:false} },
+          y:{ grid:{color:'#f5f5f5'}, ticks:{ callback:function(v){ return '$'+v.toFixed(1)+'M'; }}, title:{display:true,text:'Venta diaria',font:{size:9}} }
+        }
+      }
+    });
+
+    var wrap = document.getElementById('dayWeekSummary');
+    if (!wrap) return;
+    var _sub = !!(document.getElementById('dayRC').value || document.getElementById('dayGrupo').value || document.getElementById('dayFamilia').value);
+    var h = '<table class="wk-tbl"><thead><tr><th>Semana</th><th>D&iacute;as</th><th>Venta total</th><th>Prom./d&iacute;a</th><th>Hu&eacute;spedes</th><th>Ticket prom.</th><th>Ppto ticket'+(_sub?' (total AyB)':'')+'</th><th>vs ppto</th><th title="Ticket promedio vs la semana anterior elegida">Ticket vs ant.</th><th title="Venta promedio por día vs la semana anterior elegida">Venta/d&iacute;a vs ant.</th></tr></thead><tbody>';
+    var prev = null;
+    function delta(a,b){ if (a==null || b==null || !b) return '–'; var d=(a/b-1)*100; return '<span class="'+(d>=0?'wk-up':'wk-dn')+'">'+(d>=0?'+':'')+d.toFixed(1)+'%</span>'; }
+    rows.forEach(function(o){
+      var vpd = o.days ? o.venta/o.days : null;
+      h += '<tr><td><span class="wk-sw" style="background:'+weekColor(o.mon)+'"></span><b>'+weekLabel(o.mon)+'</b></td>'
+        + '<td>'+o.days+(o.days<7?' <span style="color:#9CA3AF">de 7</span>':'')+'</td>'
+        + '<td><b>'+fmtM(o.venta)+'</b></td><td>'+(vpd!=null?fmtM(vpd):'–')+'</td>'
+        + '<td>'+(o.hues?o.hues.toLocaleString('es-CO'):'–')+'</td>'
+        + '<td><b>'+money(o.tkt)+'</b></td><td>'+money(o.ppto)+'</td><td>'+delta(o.tkt,o.ppto)+'</td>'
+        + '<td>'+(prev?delta(o.tkt,prev.tkt):'–')+'</td><td>'+(prev?delta(vpd, prev.days?prev.venta/prev.days:null):'–')+'</td></tr>';
+      prev = o;
+    });
+    if (rows.length > 1) {
+      var T = rows.reduce(function(a,o){ a.v+=o.venta; a.vo+=o.ventaOcc; a.h+=o.hues; a.d+=o.days; a.pn+=o.pn; a.pd+=o.pd; return a; }, {v:0,vo:0,h:0,d:0,pn:0,pd:0});
+      var tt = T.h ? T.vo/T.h : null, tp = T.pd ? T.pn/T.pd : null;
+      h += '<tr style="font-weight:800;border-top:2px solid #eee;"><td>Total semanas elegidas</td><td>'+T.d+'</td><td>'+fmtM(T.v)+'</td><td>'+(T.d?fmtM(T.v/T.d):'–')+'</td><td>'+T.h.toLocaleString('es-CO')+'</td><td>'+money(tt)+'</td><td>'+money(tp)+'</td><td>'+delta(tt,tp)+'</td><td></td><td></td></tr>';
+    }
+    h += '</tbody></table><div style="font-size:0.68rem;color:#9CA3AF;margin-top:6px;">Ticket promedio = venta de la semana (con los filtros de centro, grupo y familia) / hu&eacute;spedes (noches) de esos d&iacute;as en las sedes filtradas. Solo cuenta los d&iacute;as dentro del rango de fechas y con datos.</div>';
+    wrap.innerHTML = h;
+    wrap.style.display = '';
   }
 
   function renderDOWChart() {
